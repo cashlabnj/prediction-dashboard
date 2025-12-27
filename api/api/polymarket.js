@@ -1,14 +1,14 @@
-export const config = {
-  runtime: 'edge',
-};
+export default async function handler(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET');
 
-export default async function handler(request) {
   try {
     const response = await fetch(
       'https://gamma-api.polymarket.com/markets?active=true&limit=100&order=volume24hr&ascending=false',
       {
         headers: {
           'Accept': 'application/json',
+          'User-Agent': 'PredictionDashboard/1.0',
         },
       }
     );
@@ -18,25 +18,9 @@ export default async function handler(request) {
     }
 
     const data = await response.json();
-
-    return new Response(JSON.stringify(data), {
-      status: 200,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-        'Cache-Control': 's-maxage=60, stale-while-revalidate=300',
-      },
-    });
+    res.status(200).json(data);
   } catch (error) {
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      {
-        status: 500,
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-        },
-      }
-    );
+    console.error('Polymarket error:', error);
+    res.status(500).json({ error: error.message });
   }
 }
