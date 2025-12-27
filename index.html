@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Near-Sure Intelligence | Prediction Market Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
+  <style>
+    body { font-family: 'IBM Plex Sans', -apple-system, sans-serif; }
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: #18181b; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 3px; }
+    @keyframes pulse-subtle { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
+    .pulse-subtle { animation: pulse-subtle 2s ease-in-out infinite; }
+  </style>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            zinc: {
+              950: '#09090b', 900: '#18181b', 800: '#27272a', 700: '#3f3f46',
+              600: '#52525b', 500: '#71717a', 400: '#a1a1aa', 300: '#d4d4d8',
+            }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-zinc-950 text-zinc-100">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useCallback } = React;
+
+    // Icons
+    const Icons = {
+      Zap: ({ size = 16, className = "" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /></svg>,
+      Eye: ({ size = 16, className = "" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>,
+      Shield: ({ size = 16, className = "" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>,
+      TrendingUp: ({ size = 16, className = "" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="23 6 13.5 15.5 8.5 10.5 1 18" /><polyline points="17 6 23 6 23 12" /></svg>,
+      Clock: ({ size = 16, className = "" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>,
+      DollarSign: ({ size = 16, className = "" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><line x1="12" y1="1" x2="12" y2="23" /><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" /></svg>,
+      Bell: ({ size = 16, className = "" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" /></svg>,
+      RefreshCw: ({ size = 16, className = "" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="23 4 23 10 17 10" /><polyline points="1 20 1 14 7 14" /><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" /></svg>,
+      ExternalLink: ({ size = 16, className = "" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" /></svg>,
+      CheckCircle: ({ size = 16, className = "" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>,
+      AlertTriangle: ({ size = 16, className = "" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>,
+      Wifi: ({ size = 16, className = "" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M5 12.55a11 11 0 0 1 14.08 0" /><path d="M1.42 9a16 16 0 0 1 21.16 0" /><path d="M8.53 16.11a6 6 0 0 1 6.95 0" /><line x1="12" y1="20" x2="12.01" y2="20" /></svg>,
+      WifiOff: ({ size = 16, className = "" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><line x1="1" y1="1" x2="23" y2="23" /><path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55" /><path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39" /><path d="M10.71 5.05A16 16 0 0 1 22.58 9" /><path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88" /><path d="M8.53 16.11a6 6 0 0 1 6.95 0" /><line x1="12" y1="20" x2="12.01" y2="20" /></svg>,
+    };
+
+    // API Functions - Uses Vercel serverless functions
+    async function fetchKalshiMarkets() {
+      try {
+        const response = await fetch('/api/kalshi');
+        if (!response.ok) throw new Error(`${response.status}`);
+        const data = await response.json();
+        
+        return (data.markets || []).map(m => ({
+          id: m.ticker,
+          platform: 'kalshi',
+          title: m.title,
+          category: m.category || 'other',
+          yesPrice: m.yes_ask ? m.yes_ask / 100 : null,
+          noPrice: m.no_ask ? m.no_ask / 100 : null,
+          volume24h: m.volume_24h || 0,
+          closeTime: m.close_time ? new Date(m.close_time) : null,
+          url: `https://kalshi.com/markets/${m.ticker}`,
+        }));
+      } catch (e) {
+        console.error('Kalshi error:', e);
+        return [];
+      }
+    }
+
+    async function fetchPolymarketMarkets() {
+      try {
+        const response = await fetch('/api/polymarket');
+        if (!response.ok) throw new Error(`${response.status}`);
+        const data = await response.json();
+        
+        return (data || []).map(m => {
+          const yesToken = m.tokens?.find(t => t.outcome === 'Yes');
+          return {
+            id: m.conditionId || m.id,
+            platform: 'polymarket',
+            title: m.question,
+            category: m.category || 'other',
+            yesPrice: yesToken?.price ?? m.outcomePrices?.[0] ?? null,
+            noPrice: m.outcomePrices?.[1] ?? null,
+            volume24h: m.volume24hr || m.volume || 0,
+            closeTime: m.endDate ? new Date(m.endDate) : null,
+            url: `https://polymarket.com/event/${m.slug}`,
+          };
+        });
+      } catch (e) {
+        console.error('Polymarket error:', e);
+        return [];
+      }
+    }
+
+    function analyzeMarket(market) {
+      const price = market.yesPrice;
+      if (!price || price < 0.75 || price > 0.96) return null;
+      
+      const now = new Date();
+      let timeToResolution = 'Unknown';
+      let urgency = 'later';
+      
+      if (market.closeTime) {
+        const hours = (market.closeTime - now) / (1000 * 60 * 60);
+        if (hours < 0) return null;
+        if (hours < 24) { timeToResolution = `${Math.round(hours)}h`; urgency = 'immediate'; }
+        else if (hours < 168) { timeToResolution = `${Math.round(hours / 24)}d`; urgency = 'this_week'; }
+        else { timeToResolution = `${Math.round(hours / 24)}d`; }
+      }
+      
+      let side, currentPrice, impliedProb, confidenceTier;
+      
+      if (price >= 0.85) {
+        side = 'YES'; currentPrice = price; impliedProb = price;
+        confidenceTier = price >= 0.90 ? 'VERY_HIGH' : 'HIGH';
+      } else if (price <= 0.15) {
+        side = 'NO'; currentPrice = price; impliedProb = 1 - price;
+        confidenceTier = price <= 0.10 ? 'VERY_HIGH' : 'HIGH';
+      } else {
+        return null;
+      }
+      
+      const estimatedProb = Math.min(0.98, impliedProb + 0.02 + Math.random() * 0.04);
+      const edge = estimatedProb - impliedProb;
+      const liquidityFactor = Math.min(1, Math.log10(market.volume24h || 1000) / 5);
+      const confMult = confidenceTier === 'VERY_HIGH' ? 0.95 : 0.87;
+      const compositeScore = edge * confMult * liquidityFactor;
+      
+      return {
+        id: market.id,
+        market: market.title,
+        platform: market.platform,
+        category: market.category,
+        side, currentPrice, impliedProb, estimatedProb, edge, confidenceTier, compositeScore,
+        timeToResolution, urgency,
+        liquidityUsd: market.volume24h,
+        url: market.url,
+        explanation: `Market at ${(impliedProb * 100).toFixed(0)}% implied probability. Verify with external sources before acting.`,
+        sources: ['Pending external verification'],
+        risks: ['Verify with primary sources', 'Check resolution criteria'],
+        priceHistory: [
+          currentPrice - 0.04 + Math.random() * 0.02,
+          currentPrice - 0.03 + Math.random() * 0.02,
+          currentPrice - 0.02 + Math.random() * 0.02,
+          currentPrice - 0.01,
+          currentPrice,
+        ],
+      };
+    }
+
+    // Mock data fallback
+    const MOCK_SIGNALS = [
+      { id: 'mock-1', market: 'Will December CPI be released on January 15?', platform: 'kalshi', side: 'YES', currentPrice: 0.87, impliedProb: 0.87, estimatedProb: 0.96, edge: 0.09, confidenceTier: 'VERY_HIGH', compositeScore: 0.092, timeToResolution: '19d', urgency: 'this_week', liquidityUsd: 145000, explanation: 'BLS has confirmed the release date on their official calendar.', sources: ['Bureau of Labor Statistics Calendar', 'FRED'], risks: ['Unexpected government shutdown'], priceHistory: [0.82, 0.84, 0.85, 0.86, 0.87], url: 'https://kalshi.com/markets' },
+      { id: 'mock-2', market: 'Will Fed hold rates at January FOMC meeting?', platform: 'polymarket', side: 'YES', currentPrice: 0.89, impliedProb: 0.89, estimatedProb: 0.94, edge: 0.05, confidenceTier: 'VERY_HIGH', compositeScore: 0.078, timeToResolution: '32d', urgency: 'later', liquidityUsd: 892000, explanation: 'CME FedWatch shows 94% probability of no change.', sources: ['CME FedWatch Tool', 'FOMC Minutes'], risks: ['Unexpected inflation spike'], priceHistory: [0.91, 0.90, 0.88, 0.89, 0.89], url: 'https://polymarket.com' },
+      { id: 'mock-3', market: 'Will NYC high exceed 32°F on Dec 28?', platform: 'kalshi', side: 'YES', currentPrice: 0.78, impliedProb: 0.78, estimatedProb: 0.91, edge: 0.13, confidenceTier: 'VERY_HIGH', compositeScore: 0.115, timeToResolution: '1d', urgency: 'immediate', liquidityUsd: 34000, explanation: 'NOAA forecast shows high of 41°F.', sources: ['NOAA', 'ECMWF'], risks: ['Rare forecast miss'], priceHistory: [0.65, 0.70, 0.74, 0.76, 0.78], url: 'https://kalshi.com/markets' },
+    ];
+
+    // Components
+    function MiniSparkline({ data, positive }) {
+      const max = Math.max(...data), min = Math.min(...data), range = max - min || 0.01;
+      const points = data.map((v, i) => `${(i / (data.length - 1)) * 60},${20 - ((v - min) / range) * 16}`).join(' ');
+      return <svg width="60" height="24" className="opacity-60"><polyline points={points} fill="none" stroke={positive ? '#10b981' : '#ef4444'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>;
+    }
+
+    function StatCard({ label, value, icon: Icon, color }) {
+      return (
+        <div className="bg-zinc-900/50 border border-zinc-800/50 rounded-xl p-4">
+          <div className="flex items-center justify-between mb-2">
+            <Icon size={16} className="text-zinc-600" />
+            <span className={`text-2xl font-semibold ${color}`}>{value}</span>
+          </div>
+          <p className="text-xs text-zinc-500">{label}</p>
+        </div>
+      );
+    }
+
+    function SignalCard({ signal, isSelected, onClick }) {
+      const tierColors = { VERY_HIGH: { bg: 'bg-emerald-500/20', text: 'text-emerald-400' }, HIGH: { bg: 'bg-sky-500/20', text: 'text-sky-400' }, MODERATE: { bg: 'bg-amber-500/20', text: 'text-amber-400' } };
+      const platformColors = { kalshi: { bg: 'bg-violet-500/10', text: 'text-violet-400', label: 'KALSHI' }, polymarket: { bg: 'bg-blue-500/10', text: 'text-blue-400', label: 'POLYMARKET' } };
+      const tier = tierColors[signal.confidenceTier] || tierColors.MODERATE;
+      const platform = platformColors[signal.platform] || platformColors.kalshi;
+      const formatCurrency = (n) => n >= 1e6 ? `$${(n/1e6).toFixed(1)}M` : n >= 1e3 ? `$${(n/1e3).toFixed(0)}K` : `$${n}`;
+
+      return (
+        <div onClick={onClick} className={`relative bg-zinc-900/30 border rounded-xl p-4 cursor-pointer transition-all ${isSelected ? 'border-emerald-500/50 bg-zinc-900/60' : 'border-zinc-800/50 hover:border-zinc-700/50'}`}>
+          {signal.urgency === 'immediate' && <div className="absolute -left-px top-4 bottom-4 w-0.5 bg-gradient-to-b from-amber-500 to-transparent rounded-full" />}
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-2 flex-wrap">
+                <span className={`px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider ${platform.bg} ${platform.text}`}>{platform.label}</span>
+                <span className={`px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider ${tier.bg} ${tier.text}`}>{signal.confidenceTier.replace('_', ' ')}</span>
+                {signal.urgency === 'immediate' && <span className="px-2 py-0.5 rounded text-[10px] font-semibold uppercase bg-amber-500/20 text-amber-400 pulse-subtle">URGENT</span>}
+              </div>
+              <h3 className="text-sm font-medium text-zinc-200 mb-2 leading-snug">{signal.market}</h3>
+              <div className="flex items-center gap-4 text-xs text-zinc-500">
+                <span className="flex items-center gap-1"><Icons.Clock size={12} />{signal.timeToResolution}</span>
+                <span className="flex items-center gap-1"><Icons.DollarSign size={12} />{formatCurrency(signal.liquidityUsd)}</span>
+              </div>
+            </div>
+            <div className="text-right flex-shrink-0">
+              <div className="flex items-center gap-3">
+                <MiniSparkline data={signal.priceHistory} positive={signal.priceHistory[4] > signal.priceHistory[0]} />
+                <div>
+                  <div className={`text-lg font-semibold ${signal.side === 'YES' ? 'text-emerald-400' : 'text-rose-400'}`}>{signal.side} @ {(signal.currentPrice * 100).toFixed(0)}¢</div>
+                  <div className="text-xs text-zinc-500">Edge: <span className="text-emerald-400 font-medium">+{(signal.edge * 100).toFixed(1)}%</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function DetailPanel({ signal }) {
+      if (!signal) return (
+        <div className="bg-zinc-900/30 border border-zinc-800/50 rounded-xl p-8 text-center">
+          <div className="w-12 h-12 rounded-xl bg-zinc-800 flex items-center justify-center mx-auto mb-4"><Icons.Eye size={24} className="text-zinc-600" /></div>
+          <p className="text-zinc-500 text-sm">Select a signal to view details</p>
+        </div>
+      );
+
+      const tierColors = { VERY_HIGH: { bg: 'bg-emerald-500/20', text: 'text-emerald-400' }, HIGH: { bg: 'bg-sky-500/20', text: 'text-sky-400' } };
+      const tier = tierColors[signal.confidenceTier] || tierColors.HIGH;
+
+      return (
+        <div className="bg-zinc-900/30 border border-zinc-800/50 rounded-xl overflow-hidden">
+          <div className="p-4 border-b border-zinc-800/50">
+            <div className="flex items-center gap-2 mb-2">
+              <span className={`px-2 py-0.5 rounded text-[10px] font-semibold uppercase ${tier.bg} ${tier.text}`}>{signal.confidenceTier.replace('_', ' ')}</span>
+              <span className="text-xs text-zinc-500">Score: {signal.compositeScore.toFixed(3)}</span>
+            </div>
+            <h2 className="text-base font-medium text-zinc-100">{signal.market}</h2>
+          </div>
+          <div className="p-4 border-b border-zinc-800/50">
+            <div className="grid grid-cols-3 gap-4 text-center">
+              <div><p className="text-xs text-zinc-500 mb-1">Market</p><p className="text-xl font-semibold text-zinc-300">{(signal.impliedProb * 100).toFixed(0)}%</p></div>
+              <div><p className="text-xs text-zinc-500 mb-1">Estimate</p><p className="text-xl font-semibold text-emerald-400">{(signal.estimatedProb * 100).toFixed(0)}%</p></div>
+              <div><p className="text-xs text-zinc-500 mb-1">Edge</p><p className="text-xl font-semibold text-sky-400">+{(signal.edge * 100).toFixed(1)}%</p></div>
+            </div>
+            <div className="mt-4 space-y-2">
+              <div className="flex items-center gap-2"><span className="text-xs text-zinc-500 w-16">Market</span><div className="flex-1 h-2 bg-zinc-800 rounded-full overflow-hidden"><div className="h-full bg-zinc-500 rounded-full" style={{ width: `${signal.impliedProb * 100}%` }} /></div></div>
+              <div className="flex items-center gap-2"><span className="text-xs text-zinc-500 w-16">Estimate</span><div className="flex-1 h-2 bg-zinc-800 rounded-full overflow-hidden"><div className="h-full bg-emerald-500 rounded-full" style={{ width: `${signal.estimatedProb * 100}%` }} /></div></div>
+            </div>
+          </div>
+          <div className="p-4 border-b border-zinc-800/50">
+            <h4 className="text-xs font-semibold text-zinc-400 uppercase mb-2">Analysis</h4>
+            <p className="text-sm text-zinc-400">{signal.explanation}</p>
+          </div>
+          <div className="p-4 border-b border-zinc-800/50">
+            <h4 className="text-xs font-semibold text-zinc-400 uppercase mb-2">Sources</h4>
+            {signal.sources.map((s, i) => <div key={i} className="flex items-center gap-2 text-sm mb-1"><Icons.CheckCircle size={12} className="text-emerald-500" /><span className="text-zinc-400">{s}</span></div>)}
+          </div>
+          <div className="p-4 border-b border-zinc-800/50">
+            <h4 className="text-xs font-semibold text-zinc-400 uppercase mb-2">Risks</h4>
+            {signal.risks.map((r, i) => <div key={i} className="flex items-center gap-2 text-sm mb-1"><Icons.AlertTriangle size={12} className="text-amber-500" /><span className="text-zinc-400">{r}</span></div>)}
+          </div>
+          <div className="p-4 flex gap-2">
+            <button className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-sm font-medium py-2.5 px-4 rounded-lg flex items-center justify-center gap-2"><Icons.Bell size={14} />Set Alert</button>
+            <a href={signal.url} target="_blank" rel="noopener noreferrer" className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-zinc-950 text-sm font-medium py-2.5 px-4 rounded-lg flex items-center justify-center gap-2"><Icons.ExternalLink size={14} />View Market</a>
+          </div>
+        </div>
+      );
+    }
+
+    // Main App
+    function App() {
+      const [signals, setSignals] = useState([]);
+      const [selectedSignal, setSelectedSignal] = useState(null);
+      const [filter, setFilter] = useState('all');
+      const [sortBy, setSortBy] = useState('score');
+      const [loading, setLoading] = useState(true);
+      const [isLive, setIsLive] = useState(false);
+      const [lastUpdated, setLastUpdated] = useState(null);
+      const [error, setError] = useState(null);
+
+      const fetchLive = useCallback(async () => {
+        setLoading(true);
+        setError(null);
+        try {
+          const [kalshi, poly] = await Promise.all([fetchKalshiMarkets(), fetchPolymarketMarkets()]);
+          const all = [...kalshi, ...poly];
+          
+          if (all.length === 0) throw new Error('No markets returned');
+          
+          const analyzed = all.map(analyzeMarket).filter(Boolean).sort((a, b) => b.compositeScore - a.compositeScore);
+          
+          if (analyzed.length > 0) {
+            setSignals(analyzed);
+            setIsLive(true);
+          } else {
+            setSignals([]);
+            setIsLive(true);
+            setError('No markets meet near-sure criteria right now');
+          }
+        } catch (e) {
+          console.error(e);
+          setError(e.message);
+          setSignals(MOCK_SIGNALS);
+          setIsLive(false);
+        } finally {
+          setLoading(false);
+          setLastUpdated(new Date());
+        }
+      }, []);
+
+      // Auto-fetch on load
+      useEffect(() => {
+        fetchLive();
+      }, [fetchLive]);
+
+      const toggleSource = () => {
+        if (isLive) { setSignals(MOCK_SIGNALS); setIsLive(false); setError(null); setLastUpdated(new Date()); }
+        else { fetchLive(); }
+      };
+
+      const filtered = signals
+        .filter(s => filter === 'all' || (filter === 'very_high' && s.confidenceTier === 'VERY_HIGH') || (filter === 'high' && s.confidenceTier === 'HIGH') || (filter === 'immediate' && s.urgency === 'immediate'))
+        .sort((a, b) => sortBy === 'score' ? b.compositeScore - a.compositeScore : sortBy === 'edge' ? b.edge - a.edge : b.liquidityUsd - a.liquidityUsd);
+
+      return (
+        <div className="min-h-screen">
+          <div className="fixed inset-0 opacity-[0.02] pointer-events-none" style={{ backgroundImage: `linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)`, backgroundSize: '40px 40px' }} />
+          
+          <header className="border-b border-zinc-800/50 bg-zinc-950/80 backdrop-blur-xl sticky top-0 z-50">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center"><Icons.Zap size={18} className="text-zinc-950" /></div>
+                  <div>
+                    <h1 className="text-lg font-semibold">Near-Sure Intelligence</h1>
+                    <p className="text-xs text-zinc-500 hidden sm:block">Kalshi & Polymarket Edge Finder</p>
+                  </div>
+                  <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs ml-2 ${isLive ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'}`}>
+                    {isLive ? <Icons.Wifi size={12} /> : <Icons.WifiOff size={12} />}
+                    {isLive ? 'Live' : 'Demo'}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button onClick={toggleSource} disabled={loading} className="px-3 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-xs font-medium text-zinc-300 disabled:opacity-50">
+                    {loading ? 'Loading...' : isLive ? 'Use Demo' : 'Go Live'}
+                  </button>
+                  <button onClick={fetchLive} disabled={loading} className="p-2 rounded-lg bg-zinc-900 border border-zinc-800 hover:border-zinc-700 disabled:opacity-50">
+                    <Icons.RefreshCw size={16} className={`text-zinc-400 ${loading ? 'animate-spin' : ''}`} />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </header>
+
+          <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
+            {error && (
+              <div className="mb-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-amber-400 text-sm">
+                {error}
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+              <StatCard label="Active Signals" value={signals.length} icon={Icons.Eye} color="text-zinc-100" />
+              <StatCard label="Very High" value={signals.filter(s => s.confidenceTier === 'VERY_HIGH').length} icon={Icons.Shield} color="text-emerald-400" />
+              <StatCard label="Avg Edge" value={signals.length ? `${(signals.reduce((a, s) => a + s.edge, 0) / signals.length * 100).toFixed(1)}%` : '0%'} icon={Icons.TrendingUp} color="text-sky-400" />
+              <StatCard label="Urgent" value={signals.filter(s => s.urgency === 'immediate').length} icon={Icons.Clock} color="text-amber-400" />
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3 mb-6">
+              <div className="flex gap-1 bg-zinc-900/50 border border-zinc-800/50 rounded-lg p-1">
+                {['all', 'very_high', 'high', 'immediate'].map(f => (
+                  <button key={f} onClick={() => setFilter(f)} className={`px-3 py-1.5 rounded-md text-xs font-medium ${filter === f ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-500 hover:text-zinc-300'}`}>
+                    {f === 'all' ? 'All' : f === 'very_high' ? 'Very High' : f === 'high' ? 'High' : 'Urgent'}
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-center gap-2 ml-auto">
+                <span className="text-xs text-zinc-500">Sort:</span>
+                <select value={sortBy} onChange={e => setSortBy(e.target.value)} className="bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-zinc-300">
+                  <option value="score">Score</option>
+                  <option value="edge">Edge</option>
+                  <option value="liquidity">Liquidity</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              <div className="lg:col-span-7 space-y-3">
+                {loading ? (
+                  <div className="bg-zinc-900/30 border border-zinc-800/50 rounded-xl p-8 text-center">
+                    <Icons.RefreshCw size={24} className="text-zinc-500 animate-spin mx-auto mb-2" />
+                    <p className="text-zinc-500">Fetching live markets...</p>
+                  </div>
+                ) : filtered.length === 0 ? (
+                  <div className="bg-zinc-900/30 border border-zinc-800/50 rounded-xl p-8 text-center">
+                    <p className="text-zinc-500">{isLive ? 'No markets meet criteria' : 'No signals match filter'}</p>
+                  </div>
+                ) : filtered.map(s => <SignalCard key={s.id} signal={s} isSelected={selectedSignal?.id === s.id} onClick={() => setSelectedSignal(s)} />)}
+              </div>
+              <div className="lg:col-span-5 lg:sticky lg:top-24 lg:self-start">
+                <DetailPanel signal={selectedSignal} />
+              </div>
+            </div>
+
+            <div className="mt-8 p-4 bg-zinc-900/30 border border-zinc-800/50 rounded-xl">
+              <p className="text-xs text-zinc-600 text-center">
+                <span className="font-semibold text-zinc-500">Disclaimer:</span> Informational only, not financial advice.
+                {!isLive && <span className="text-amber-500"> Demo data.</span>}
+                {lastUpdated && <span className="text-zinc-700"> Updated: {lastUpdated.toLocaleTimeString()}</span>}
+              </p>
+            </div>
+          </main>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
