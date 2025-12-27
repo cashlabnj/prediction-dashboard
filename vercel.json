@@ -1,27 +1,6 @@
 {
-  "version": 2,
-  "builds": [
-    {
-      "src": "api/*.js",
-      "use": "@vercel/node"
-    },
-    {
-      "src": "index.html",
-      "use": "@vercel/static"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/api/kalshi",
-      "dest": "/api/kalshi.js"
-    },
-    {
-      "src": "/api/polymarket",
-      "dest": "/api/polymarket.js"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/index.html"
-    }
+  "rewrites": [
+    { "source": "/api/kalshi", "destination": "/api/kalshi.js" },
+    { "source": "/api/polymarket", "destination": "/api/polymarket.js" }
   ]
 }
