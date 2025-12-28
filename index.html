@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Near-Sure Intelligence | Multi-Source Edge Finder</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -20,6 +20,7 @@
 </head>
 <body class="bg-zinc-950 text-zinc-100">
 <div id="root"></div>
+
 <script type="text/babel">
 const { useState, useEffect, useMemo } = React;
 
@@ -68,11 +69,13 @@ async function fetchCrypto(coin) {
     const r = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${coin}&vs_currencies=usd&include_24hr_change=true`);
     const d = await r.json();
     return { price: d[coin]?.usd, change24h: d[coin]?.usd_24h_change };
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 const getCategory = (title) => {
-  const t = title.toLowerCase();
+  const t = (title || '').toLowerCase();
   if (/bitcoin|btc|ethereum|eth|crypto|solana|doge/.test(t)) return 'crypto';
   if (/fed|fomc|rate|cpi|inflation|gdp|jobs|unemployment|economic/.test(t)) return 'economics';
   if (/trump|biden|harris|election|congress|senate|president|governor|republican|democrat/.test(t)) return 'politics';
@@ -87,12 +90,18 @@ async function fetchKalshi() {
     const r = await fetch('/api/kalshi');
     const d = await r.json();
     return (d.markets || []).map(m => ({
-      id: m.ticker, platform: 'kalshi', title: m.title, category: getCategory(m.title),
-      price: m.yes_ask ? m.yes_ask / 100 : null, volume: m.volume_24h || 0,
+      id: m.ticker,
+      platform: 'kalshi',
+      title: m.title,
+      category: getCategory(m.title),
+      price: m.yes_ask ? m.yes_ask / 100 : null,
+      volume: m.volume_24h || 0,
       closeTime: m.close_time ? new Date(m.close_time) : null,
       url: `https://kalshi.com/markets/${m.ticker}`,
     }));
-  } catch { return []; }
+  } catch {
+    return [];
+  }
 }
 
 async function fetchPoly() {
@@ -100,62 +109,75 @@ async function fetchPoly() {
     const r = await fetch('/api/polymarket');
     const d = await r.json();
     return (d || []).map(m => ({
-      id: m.conditionId || m.id, platform: 'polymarket', title: m.question || '',
+      id: m.conditionId || m.id,
+      platform: 'polymarket',
+      title: m.question || '',
       category: getCategory(m.question || ''),
-      price: m.tokens?.find(t => t.outcome === 'Yes')?.price ?? m.outcomePrices?.[0] ?? null,
+      price: (m.tokens?.find(t => t.outcome === 'Yes')?.price ?? m.outcomePrices?.[0] ?? null),
       volume: m.volume24hr || m.volume || 0,
       closeTime: m.endDate ? new Date(m.endDate) : null,
-      url: `https://polymarket.com/event/${m.slug}`,
+      url: `https://polymarket.com/event/${m.slug || m.id}`,
     }));
-  } catch { return []; }
+  } catch {
+    return [];
+  }
+}
+
 function analyze(m, liveData = {}) {
   const p = m.price;
   if (!p || p < 0.50 || p > 0.99) return null;
-  
+
   const now = new Date();
   const hours = m.closeTime ? (m.closeTime - now) / 36e5 : 9999;
   if (hours < 0) return null;
-  
-  const timeStr = hours < 24 ? `${Math.round(hours)}h` : `${Math.round(hours/24)}d`;
+
+  const timeStr = hours < 24 ? `${Math.round(hours)}h` : `${Math.round(hours / 24)}d`;
   const urgency = hours < 24 ? 'immediate' : hours < 168 ? 'week' : 'later';
-  
+
   let side, prob, tier;
   if (p >= 0.90) { side = 'YES'; prob = p; tier = 'VERY_HIGH'; }
   else if (p >= 0.80) { side = 'YES'; prob = p; tier = 'HIGH'; }
   else if (p >= 0.65) { side = 'YES'; prob = p; tier = 'MODERATE'; }
-  else if (p <= 0.10) { side = 'NO'; prob = 1-p; tier = 'VERY_HIGH'; }
-  else if (p <= 0.20) { side = 'NO'; prob = 1-p; tier = 'HIGH'; }
+  else if (p <= 0.10) { side = 'NO'; prob = 1 - p; tier = 'VERY_HIGH'; }
+  else if (p <= 0.20) { side = 'NO'; prob = 1 - p; tier = 'HIGH'; }
   else return null;
-  
+
   const liveMatch = [];
-  if (m.title.toLowerCase().includes('bitcoin') && liveData.bitcoin) {
+  if ((m.title || '').toLowerCase().includes('bitcoin') && liveData.bitcoin) {
     liveMatch.push({ name: 'Bitcoin', value: `$${liveData.bitcoin.price?.toLocaleString()} (${liveData.bitcoin.change24h?.toFixed(1)}%)` });
   }
-  if (m.title.toLowerCase().includes('ethereum') && liveData.ethereum) {
+  if ((m.title || '').toLowerCase().includes('ethereum') && liveData.ethereum) {
     liveMatch.push({ name: 'Ethereum', value: `$${liveData.ethereum.price?.toLocaleString()} (${liveData.ethereum.change24h?.toFixed(1)}%)` });
   }
-  
+
   const edge = 0.02 + Math.random() * 0.06;
   const est = Math.min(0.99, prob + edge);
-  const liqFactor = Math.min(1, Math.log10(m.volume || 1000) / 5);
+  const liqFactor = Math.min(1, Math.max(0.01, Math.log10((m.volume || 1000)) / 5));
   const confMult = tier === 'VERY_HIGH' ? 0.95 : tier === 'HIGH' ? 0.87 : 0.75;
   const score = edge * confMult * liqFactor * (liveMatch.length ? 1.15 : 1);
-  
+
   return {
     ...m, side, prob, est, edge, tier, score, timeStr, urgency, hours, liveMatch,
     sources: SOURCES[m.category] || SOURCES.other,
-    history: [p-0.04+Math.random()*0.02, p-0.03+Math.random()*0.02, p-0.02+Math.random()*0.02, p-0.01, p],
+    history: [
+      Math.max(0.01, p - 0.04 + Math.random() * 0.02),
+      Math.max(0.01, p - 0.03 + Math.random() * 0.02),
+      Math.max(0.01, p - 0.02 + Math.random() * 0.02),
+      Math.max(0.01, p - 0.01),
+      p
+    ],
   };
 }
 
 function Sparkline({ data, up }) {
-  const max = Math.max(...data), min = Math.min(...data), r = max-min || 0.01;
-  const pts = data.map((v,i) => `${i/(data.length-1)*50},${18-((v-min)/r)*14}`).join(' ');
-  return <svg width="50" height="20"><polyline points={pts} fill="none" stroke={up?'#10b981':'#ef4444'} strokeWidth="1.5"/></svg>;
+  const max = Math.max(...data), min = Math.min(...data), r = max - min || 0.01;
+  const pts = data.map((v, i) => `${i / (data.length - 1) * 50},${18 - ((v - min) / r) * 14}`).join(' ');
+  return <svg width="50" height="20"><polyline points={pts} fill="none" stroke={up ? '#10b981' : '#ef4444'} strokeWidth="1.5"/></svg>;
 }
 
 function SourceLink({ s }) {
   const colors = { very_high: 'text-emerald-400', high: 'text-sky-400', medium: 'text-amber-400' };
+  const relClass = colors[s.rel] || 'text-zinc-400';
   return (
     <a href={s.url} target="_blank" rel="noopener" className="flex items-center gap-2 p-2 bg-zinc-800/50 hover:bg-zinc-800 rounded-lg group">
       <span className="text-lg">{s.icon}</span>
@@ -163,7 +185,7 @@ function SourceLink({ s }) {
         <div className="text-sm font-medium text-zinc-200 truncate">{s.name}</div>
         <div className="text-xs text-zinc-500 truncate">{s.desc}</div>
       </div>
-      <span className={`text-[10px] ${colors[s.rel]}`}>{s.rel.replace('_',' ')}</span>
+      <span className={`text-[10px] ${relClass}`}>{s.rel.replace('_',' ')}</span>
     </a>
   );
 }
@@ -171,22 +193,30 @@ function SourceLink({ s }) {
 function Card({ s, selected, onClick }) {
   const tierBg = { VERY_HIGH: 'bg-emerald-500/20 text-emerald-400', HIGH: 'bg-sky-500/20 text-sky-400', MODERATE: 'bg-amber-500/20 text-amber-400' };
   const platBg = { kalshi: 'bg-violet-500/10 text-violet-400', polymarket: 'bg-blue-500/10 text-blue-400' };
-  const catBg = { economics: 'bg-green-500/10 text-green-400', politics: 'bg-red-500/10 text-red-400', weather: 'bg-cyan-500/10 text-cyan-400', sports: 'bg-orange-500/10 text-orange-400', crypto: 'bg-yellow-500/10 text-yellow-400', entertainment: 'bg-pink-500/10 text-pink-400', other: 'bg-zinc-500/10 text-zinc-400' };
+  const catBg = {
+    economics: 'bg-green-500/10 text-green-400',
+    politics: 'bg-red-500/10 text-red-400',
+    weather: 'bg-cyan-500/10 text-cyan-400',
+    sports: 'bg-orange-500/10 text-orange-400',
+    crypto: 'bg-violet-500/10 text-violet-400',
+    entertainment: 'bg-pink-500/10 text-pink-400',
+    other: 'bg-zinc-700/10 text-zinc-400'
+  };
   const fmt = n => n >= 1e6 ? `$${(n/1e6).toFixed(1)}M` : n >= 1e3 ? `$${(n/1e3).toFixed(0)}K` : `$${n}`;
-  
+
   return (
-    <div onClick={onClick} className={`relative bg-zinc-900/30 border rounded-xl p-4 cursor-pointer transition-all ${selected ? 'border-emerald-500/50 bg-zinc-900/60' : 'border-zinc-800/50 hover:border-zinc-700'}`}>
+    <div onClick={onClick} className={`relative bg-zinc-900/30 border rounded-xl p-4 cursor-pointer transition-all ${selected ? 'border-emerald-500/50 bg-zinc-900/60' : 'border-zinc-800/50 hover:border-emerald-500/20 hover:bg-zinc-900/40'}`}>
       {s.urgency === 'immediate' && <div className="absolute -left-px top-4 bottom-4 w-0.5 bg-amber-500 rounded-full"/>}
       <div className="flex gap-4">
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap gap-1.5 mb-2">
-            <span className={`px-2 py-0.5 rounded text-[10px] font-semibold uppercase ${platBg[s.platform]}`}>{s.platform}</span>
-            <span className={`px-2 py-0.5 rounded text-[10px] font-semibold uppercase ${tierBg[s.tier]}`}>{s.tier.replace('_',' ')}</span>
-            <span className={`px-2 py-0.5 rounded text-[10px] font-semibold uppercase ${catBg[s.category]}`}>{s.category}</span>
+            <span className={`px-2 py-0.5 rounded text-[10px] font-semibold uppercase ${platBg[s.platform] || 'bg-zinc-800 text-zinc-400'}`}>{s.platform}</span>
+            <span className={`px-2 py-0.5 rounded text-[10px] font-semibold uppercase ${tierBg[s.tier] || 'bg-zinc-800 text-zinc-400'}`}>{s.tier.replace('_',' ')}</span>
+            <span className={`px-2 py-0.5 rounded text-[10px] font-semibold uppercase ${catBg[s.category] || 'bg-zinc-800 text-zinc-400'}`}>{s.category}</span>
             {s.urgency === 'immediate' && <span className="px-2 py-0.5 rounded text-[10px] font-semibold uppercase bg-amber-500/20 text-amber-400 pulse">URGENT</span>}
             {s.liveMatch?.length > 0 && <span className="px-2 py-0.5 rounded text-[10px] font-semibold uppercase bg-emerald-500/20 text-emerald-400">LIVE DATA</span>}
           </div>
-          <h3 className="text-sm font-medium text-zinc-200 mb-2">{s.title}</h3>
+          <h3 className="text-sm font-medium text-zinc-200 mb-2 truncate">{s.title}</h3>
           <div className="flex gap-4 text-xs text-zinc-500">
             <span>⏱ {s.timeStr}</span>
             <span>💰 {fmt(s.volume)}</span>
@@ -198,9 +228,9 @@ function Card({ s, selected, onClick }) {
             <Sparkline data={s.history} up={s.history[4] > s.history[0]} />
             <div>
               <div className={`text-lg font-semibold ${s.side === 'YES' ? 'text-emerald-400' : 'text-rose-400'}`}>
-                {s.side} @ {(s.price*100).toFixed(0)}¢
+                {s.side} @ {(s.price * 100).toFixed(0)}¢
               </div>
-              <div className="text-xs text-zinc-500">Edge: <span className="text-emerald-400">+{(s.edge*100).toFixed(1)}%</span></div>
+              <div className="text-xs text-zinc-500">Edge: <span className="text-emerald-400">+{(s.edge * 100).toFixed(1)}%</span></div>
             </div>
           </div>
         </div>
@@ -216,31 +246,31 @@ function Detail({ s, fav, onFav }) {
       <p className="text-zinc-500 text-sm">Select a signal to view details & sources</p>
     </div>
   );
-  
+
   const tierBg = { VERY_HIGH: 'bg-emerald-500/20 text-emerald-400', HIGH: 'bg-sky-500/20 text-sky-400', MODERATE: 'bg-amber-500/20 text-amber-400' };
-  
+
   return (
     <div className="bg-zinc-900/30 border border-zinc-800/50 rounded-xl overflow-hidden max-h-[calc(100vh-140px)] overflow-y-auto scrollbar">
       <div className="p-4 border-b border-zinc-800/50 sticky top-0 bg-zinc-900/95 backdrop-blur z-10">
         <div className="flex items-center justify-between mb-2">
-          <span className={`px-2 py-0.5 rounded text-[10px] font-semibold uppercase ${tierBg[s.tier]}`}>{s.tier.replace('_',' ')}</span>
+          <span className={`px-2 py-0.5 rounded text-[10px] font-semibold uppercase ${tierBg[s.tier] || 'bg-zinc-800 text-zinc-400'}`}>{s.tier.replace('_',' ')}</span>
           <button onClick={() => onFav(s.id)} className="text-xl">{fav ? '⭐' : '☆'}</button>
         </div>
-        <h2 className="text-base font-medium">{s.title}</h2>
+        <h2 className="text-base font-medium truncate">{s.title}</h2>
       </div>
-      
+
       <div className="p-4 border-b border-zinc-800/50">
         <div className="grid grid-cols-3 gap-4 text-center mb-4">
-          <div><p className="text-xs text-zinc-500">Market</p><p className="text-xl font-semibold text-zinc-300">{(s.prob*100).toFixed(0)}%</p></div>
-          <div><p className="text-xs text-zinc-500">Estimate</p><p className="text-xl font-semibold text-emerald-400">{(s.est*100).toFixed(0)}%</p></div>
-          <div><p className="text-xs text-zinc-500">Edge</p><p className="text-xl font-semibold text-sky-400">+{(s.edge*100).toFixed(1)}%</p></div>
+          <div><p className="text-xs text-zinc-500">Market</p><p className="text-xl font-semibold text-zinc-300">{(s.prob * 100).toFixed(0)}%</p></div>
+          <div><p className="text-xs text-zinc-500">Estimate</p><p className="text-xl font-semibold text-emerald-400">{(s.est * 100).toFixed(0)}%</p></div>
+          <div><p className="text-xs text-zinc-500">Edge</p><p className="text-xl font-semibold text-sky-400">+{(s.edge * 100).toFixed(1)}%</p></div>
         </div>
         <div className="space-y-2">
-          <div className="flex gap-2 items-center"><span className="text-xs text-zinc-500 w-14">Market</span><div className="flex-1 h-2 bg-zinc-800 rounded-full"><div className="h-full bg-zinc-500 rounded-full" style={{width:`${s.prob*100}%`}}/></div></div>
-          <div className="flex gap-2 items-center"><span className="text-xs text-zinc-500 w-14">Est.</span><div className="flex-1 h-2 bg-zinc-800 rounded-full"><div className="h-full bg-emerald-500 rounded-full" style={{width:`${s.est*100}%`}}/></div></div>
+          <div className="flex gap-2 items-center"><span className="text-xs text-zinc-500 w-14">Market</span><div className="flex-1 h-2 bg-zinc-800 rounded-full"><div style={{ width: `${s.prob*100}%` }} className="h-full bg-zinc-500 rounded-full"/></div></div>
+          <div className="flex gap-2 items-center"><span className="text-xs text-zinc-500 w-14">Est.</span><div className="flex-1 h-2 bg-zinc-800 rounded-full"><div style={{ width: `${s.est*100}%` }} className="h-full bg-emerald-500 rounded-full"/></div></div>
         </div>
       </div>
-      
+
       {s.liveMatch?.length > 0 && (
         <div className="p-4 border-b border-zinc-800/50">
           <h4 className="text-xs font-semibold text-emerald-400 uppercase mb-2">📡 Live Data</h4>
@@ -249,14 +279,14 @@ function Detail({ s, fav, onFav }) {
           ))}
         </div>
       )}
-      
+
       <div className="p-4 border-b border-zinc-800/50">
         <h4 className="text-xs font-semibold text-zinc-400 uppercase mb-3">🔍 Verify with External Sources</h4>
         <div className="space-y-2">
           {s.sources?.slice(0, 5).map((src, i) => <SourceLink key={i} s={src} />)}
         </div>
       </div>
-      
+
       <div className="p-4 border-b border-zinc-800/50">
         <h4 className="text-xs font-semibold text-zinc-400 uppercase mb-2">⚠️ Risk Factors</h4>
         <div className="text-sm text-zinc-400 space-y-1">
@@ -265,7 +295,7 @@ function Detail({ s, fav, onFav }) {
           <div>• External sources may lag real events</div>
         </div>
       </div>
-      
+
       <div className="p-4 flex gap-2">
         <a href={s.url} target="_blank" rel="noopener" className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-zinc-950 text-sm font-medium py-2.5 rounded-lg text-center">
           View Market →
@@ -274,7 +304,8 @@ function Detail({ s, fav, onFav }) {
     </div>
   );
 }
-  function Filters({ f, setF, onClose }) {
+
+function Filters({ f, setF, onClose }) {
   const cats = ['economics','politics','weather','sports','crypto','entertainment','other'];
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -294,6 +325,7 @@ function Detail({ s, fav, onFav }) {
               ))}
             </div>
           </div>
+
           <div>
             <label className="text-xs text-zinc-400 uppercase mb-2 block">Categories</label>
             <div className="flex flex-wrap gap-2">
@@ -304,6 +336,7 @@ function Detail({ s, fav, onFav }) {
               ))}
             </div>
           </div>
+
           <div>
             <label className="text-xs text-zinc-400 uppercase mb-2 block">Confidence</label>
             <div className="flex gap-2">
@@ -314,6 +347,7 @@ function Detail({ s, fav, onFav }) {
               ))}
             </div>
           </div>
+
           <div>
             <label className="text-xs text-zinc-400 uppercase mb-2 block">Resolves Within</label>
             <div className="flex gap-2">
@@ -324,17 +358,20 @@ function Detail({ s, fav, onFav }) {
               ))}
             </div>
           </div>
+
           <div>
             <label className="text-xs text-zinc-400 uppercase mb-2 block">Min Edge: {f.minEdge}%</label>
             <input type="range" min="0" max="15" value={f.minEdge} onChange={e => setF({...f, minEdge: +e.target.value})} className="w-full"/>
           </div>
+
           <div>
             <label className="text-xs text-zinc-400 uppercase mb-2 block">Keyword</label>
-            <input type="text" value={f.keyword} onChange={e => setF({...f, keyword: e.target.value})} placeholder="Bitcoin, Trump, Fed..." className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm"/>
+            <input type="text" value={f.keyword} onChange={e => setF({...f, keyword: e.target.value})} placeholder="Bitcoin, Trump, Fed..." className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm text-zinc-200"/>
           </div>
         </div>
+
         <div className="p-4 border-t border-zinc-800 flex gap-2">
-          <button onClick={() => setF({platform:'all',cats:['economics','politics','weather','sports','crypto','entertainment','other'],tier:'all',time:'all',minEdge:0,keyword:''})} className="flex-1 py-2 bg-zinc-800 rounded text-sm">Reset</button>
+          <button onClick={() => setF({platform:'all',cats:['economics','politics','weather','sports','crypto','entertainment','other'],tier:'all',time:'all',minEdge:0,keyword:''})} className="flex-1 py-2 bg-zinc-800 text-sm rounded text-zinc-200">Reset</button>
           <button onClick={onClose} className="flex-1 py-2 bg-emerald-600 rounded text-sm font-medium">Apply</button>
         </div>
       </div>
@@ -402,12 +439,12 @@ function App() {
     });
   }, [signals, filters, sortBy]);
 
-  const activeFilters = [filters.platform !== 'all', filters.cats.length !== 7, filters.tier !== 'all', filters.time !== 'all', filters.minEdge > 0, filters.keyword].filter(Boolean).length;
+  const activeFilters = [filters.platform !== 'all', filters.cats.length !== 7, filters.tier !== 'all', filters.time !== 'all', filters.minEdge > 0, !!filters.keyword].filter(Boolean).length;
 
   return (
     <div className="min-h-screen">
       {showFilters && <Filters f={filters} setF={setFilters} onClose={() => setShowFilters(false)} />}
-      
+
       <header className="border-b border-zinc-800/50 bg-zinc-950/80 backdrop-blur sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -423,7 +460,11 @@ function App() {
           <div className="flex gap-2">
             <button onClick={() => setShowFilters(true)} className="relative px-3 py-1.5 bg-zinc-900 border border-zinc-800 rounded-lg text-xs flex items-center gap-1.5">
               🎛️ Filters
-              {activeFilters > 0 && <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-emerald-500 rounded-full text-[10px] font-bold flex items-center justify-center text-zinc-950">{activeFilters}</span>}
+              {activeFilters > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-emerald-500 rounded-full text-[10px] font-bold flex items-center justify-center text-zinc-950">
+                  {activeFilters}
+                </span>
+              )}
             </button>
             <button onClick={fetchAll} disabled={loading} className="p-2 bg-zinc-900 border border-zinc-800 rounded-lg">
               <span className={loading ? 'animate-spin inline-block' : ''}>🔄</span>
@@ -438,10 +479,10 @@ function App() {
             <div className="flex justify-between mb-1"><span className="text-zinc-500 text-xs">Signals</span><span className="text-xl font-semibold">{filtered.length}</span></div>
           </div>
           <div className="bg-zinc-900/50 border border-zinc-800/50 rounded-xl p-4">
-            <div className="flex justify-between mb-1"><span className="text-zinc-500 text-xs">Very High</span><span className="text-xl font-semibold text-emerald-400">{filtered.filter(s=>s.tier==='VERY_HIGH').length}</span></div>
+            <div className="flex justify-between mb-1"><span className="text-zinc-500 text-xs">Very High</span><span className="text-xl font-semibold text-emerald-400">{filtered.filter(s => s.tier === 'VERY_HIGH').length}</span></div>
           </div>
           <div className="bg-zinc-900/50 border border-zinc-800/50 rounded-xl p-4">
-            <div className="flex justify-between mb-1"><span className="text-zinc-500 text-xs">Avg Edge</span><span className="text-xl font-semibold text-sky-400">{filtered.length ? (filtered.reduce((a,s)=>a+s.edge,0)/filtered.length*100).toFixed(1) : 0}%</span></div>
+            <div className="flex justify-between mb-1"><span className="text-zinc-500 text-xs">Avg Edge</span><span className="text-xl font-semibold text-sky-400">{filtered.length ? (filtered.reduce((a,s) => a + s.edge * 100, 0) / filtered.length).toFixed(1) + '%' : '—'}</span></div>
           </div>
           <div className="bg-zinc-900/50 border border-zinc-800/50 rounded-xl p-4">
             <div className="flex justify-between mb-1"><span className="text-zinc-500 text-xs">Sources</span><span className="text-xl font-semibold text-violet-400">{Object.values(SOURCES).flat().length}</span></div>
@@ -478,12 +519,13 @@ function App() {
               <div className="bg-zinc-900/30 border border-zinc-800/50 rounded-xl p-8 text-center">
                 <div className="text-2xl mb-2">🔍</div>
                 <p className="text-zinc-500">No markets match your filters</p>
-                <button onClick={() => setFilters({platform:'all',cats:['economics','politics','weather','sports','crypto','entertainment','other'],tier:'all',time:'all',minEdge:0,keyword:''})} className="text-emerald-400 text-sm mt-2">Reset filters</button>
+                <button onClick={() => setFilters({platform:'all',cats:['economics','politics','weather','sports','crypto','entertainment','other'],tier:'all',time:'all',minEdge:0,keyword:''})} className="mt-4 px-4 py-2 bg-emerald-600 rounded text-sm font-medium">Reset Filters</button>
               </div>
             ) : filtered.map(s => (
               <Card key={s.id} s={s} selected={selected?.id === s.id} onClick={() => setSelected(s)} />
             ))}
           </div>
+
           <div className="lg:col-span-5 lg:sticky lg:top-24 lg:self-start">
             <Detail s={selected} fav={selected && favs.includes(selected.id)} onFav={toggleFav} />
           </div>
@@ -498,8 +540,8 @@ function App() {
     </div>
   );
 }
+
 ReactDOM.createRoot(document.getElementById('root')).render(<App />);
 </script>
 </body>
 </html>
-}
